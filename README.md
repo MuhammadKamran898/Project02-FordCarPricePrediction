@@ -1,21 +1,33 @@
 # Ford Car Price Predictor
 
-A machine-learning project that estimates the market price of a used Ford vehicle from its model, year, transmission, mileage, fuel type, tax, fuel economy, and engine size. The project combines a scikit-learn regression workflow with a FastAPI prediction service and a Streamlit user interface.
+A machine-learning project for estimating used Ford vehicle prices from listing features. It combines an exploratory data analysis and regression workflow with a FastAPI prediction API and a Streamlit interface. The repository also contains an experimental engineering iteration; its changes improve input handling and API diagnostics, but its reported MAPE is slightly higher than the original notebook result, so it is documented separately rather than presented as a model-accuracy improvement.
 
-> **Project focus:** Regression modelling, exploratory data analysis, feature preprocessing, cross-validation, hyperparameter tuning, model evaluation, model serialization, API development, and a simple ML application interface.
+> **Project focus:** Regression modelling, exploratory data analysis, preprocessing pipelines, model comparison, cross-validation, hyperparameter tuning, regression metrics, model serialization, REST API development, request validation, and a lightweight ML user interface.
 
 ## Results at a glance
 
-The original notebook compares a Linear Regression baseline with a tuned `HistGradientBoostingRegressor`. On the reported 20% holdout test set, the tuned model achieved an RMSE of **£1,133.00**, an MAE of **£809.98**, an R² of **0.9442**, and a reported MAPE of **6.95%**.
+The original notebook compared five regressors and selected `HistGradientBoostingRegressor` for hyperparameter tuning. On the reported 20% holdout test split, the tuned model achieved **6.95% MAPE**, **£1,133.00 RMSE**, **£809.98 MAE**, and **0.9442 R²**.
 
-| Test-set metric | Linear Regression baseline | Tuned HistGradientBoosting | Change |
+| Original notebook benchmark | Value |
+|---|---:|
+| Test RMSE | 1,133.002 |
+| Test MAE | 809.979 |
+| Test R² | 0.9442 |
+| Test MAPE | 6.95% |
+| Train/test split | 80% / 20% |
+| Split random state | 42 |
+| Cross-validation | 5-fold shuffled `KFold` |
+
+RMSE and MAE are reported in the dataset's price units; the application presents the target as GBP. These are the metrics provided from the original notebook run. They are not a guarantee of performance on future listings or a claim that API predictions have been independently benchmarked end to end.
+
+### Original baseline vs. tuned model
+
+| Metric | Linear Regression baseline — test | Tuned HistGradientBoosting — test | Change |
 |---|---:|---:|---:|
-| RMSE | £1,808.697 | £1,133.002 | 37.36% lower |
-| MAE | £1,351.265 | £809.979 | 40.06% lower |
+| RMSE | 1,808.697 | 1,133.002 | 37.36% lower |
+| MAE | 1,351.265 | 809.979 | 40.06% lower |
 | R² | 0.858 | 0.9442 | +0.0862 |
-| MAPE | Not recorded for the baseline | 6.95% | Not comparable |
-
-RMSE and MAE are expressed in the dataset's price units, presented as GBP by the application. The RMSE/MAE change compares the reported baseline and tuned-model results from the same original project. MAPE was reported for the tuned model only, so no MAPE improvement is claimed.
+| MAPE | Not provided | 6.95% | Not comparable |
 
 ### Reported training and test metrics
 
@@ -26,97 +38,9 @@ RMSE and MAE are expressed in the dataset's price units, presented as GBP by the
 | Tuned HistGradientBoosting | Train | 1,019.944 | 720.680 | 0.9533 |
 | Tuned HistGradientBoosting | Test | 1,133.002 | 809.979 | 0.9442 |
 
-The tuned model's training error is lower than its test error, as expected. The holdout test results are the more relevant estimate of performance on unseen examples. These are the original reported results; retraining with different data, preprocessing, package versions, or splits may produce different metrics.
+## Original notebook cross-validation comparison
 
-## Project overview
-
-The application accepts eight vehicle features and returns a predicted price in GBP.
-
-```mermaid
-flowchart TD
-    A[Ford vehicle details] --> B[Streamlit UI]
-    B --> C[POST /predict]
-    C --> D[FastAPI + Pydantic validation]
-    D --> E[Model service]
-    E --> F[Saved scikit-learn pipeline]
-    F --> E
-    E --> D
-    D --> G[Predicted price in GBP]
-    G --> B
-```
-
-### Main components
-
-| Component | Responsibility |
-|---|---|
-| `Project.ipynb` | Loads the CSV, performs EDA and cleaning, builds preprocessing pipelines, compares models, tunes the candidate model, evaluates predictions, and provides an inference example. |
-| `model_service.py` | Loads the saved joblib artifact and constructs a DataFrame for inference. |
-| `schemas.py` | Defines Pydantic request validation and the prediction response schema. |
-| `main.py` | Exposes the FastAPI root, health, and prediction endpoints. |
-| `app.py` | Provides the Streamlit form and displays the estimated price returned by the API. |
-| `ford.csv` | Dataset used for model development. |
-| `ford_price_model.pkl` | Serialized fitted scikit-learn pipeline expected by the API service. |
-
-## Dataset
-
-The notebook reads `../data/ford.csv` and uses `price` as the target. The supplied CSV was inspected as a dataset of **17,966 rows and 9 columns**. The initial inspection found **154 duplicate rows**, a record with year **2060**, and **51 rows with an engine size of zero**. The notebook removes duplicate rows and filters out years greater than 2026; the meaning of zero engine-size values should be verified before deciding whether to retain or impute them.
-
-### Input features
-
-| Feature | Description | Type |
-|---|---|---|
-| `model` | Ford vehicle model | Categorical |
-| `year` | Vehicle year | Numeric |
-| `transmission` | Transmission type | Categorical |
-| `mileage` | Mileage | Numeric |
-| `fuelType` | Fuel type | Categorical |
-| `tax` | Vehicle tax | Numeric |
-| `mpg` | Fuel economy in miles per gallon | Numeric |
-| `engineSize` | Engine displacement | Numeric |
-| `price` | Vehicle price to predict | Target |
-
-The notebook normalizes the three categorical columns by trimming whitespace and converting values to lowercase. The dataset is imbalanced across some fuel types: the inspected data included only 22 hybrid examples, 2 electric examples, and 1 example labelled `Other`. Predictions for these rare categories may be less reliable than predictions for well-represented categories.
-
-**Data source:** The project uses a local `ford.csv` file. The source URL and dataset licence were not included in the supplied project files; add them here before publishing the dataset or redistribution instructions.
-
-## Methodology
-
-### 1. Exploratory data analysis
-
-The notebook explores the dataset using:
-
-- Dataset shape, column types, and missing-value counts.
-- Duplicate detection and removal.
-- Numerical summaries and categorical frequency counts.
-- Histograms and boxplots for distributions and potential outliers.
-- A numerical correlation heatmap and correlation with the target price.
-
-### 2. Train/test split
-
-The notebook uses an 80/20 train/test split with `random_state=42`. A five-fold `KFold` cross-validation strategy uses shuffling and the same random seed for model comparison.
-
-### 3. Preprocessing
-
-Preprocessing is implemented with scikit-learn pipelines and a `ColumnTransformer` so the transformations are fitted as part of model training.
-
-- **Numerical features:** median imputation followed by `StandardScaler`.
-- **Categorical features:** most-frequent imputation followed by `OneHotEncoder(handle_unknown="ignore", sparse_output=False)`.
-
-The complete fitted preprocessing-plus-estimator pipeline should be serialized and loaded for inference, rather than saving only the estimator.
-
-### 4. Baseline and model comparison
-
-Linear Regression is the initial baseline. The notebook compares the following regressors with five-fold cross-validation, reporting mean RMSE, MAE, and R²:
-
-- Linear Regression
-- Ridge Regression
-- Lasso Regression
-- Random Forest Regressor
-- HistGradientBoosting Regressor
-
-### 5. Cross-validation results
-
-The following scores were reported by the original notebook. Lower RMSE/MAE are better; higher R² is better.
+The original notebook compared Linear Regression, Ridge, Lasso, Random Forest, and HistGradientBoosting using five-fold cross-validation. The reported results were:
 
 | Model | CV RMSE | CV MAE | CV R² |
 |---|---:|---:|---:|
@@ -126,13 +50,7 @@ The following scores were reported by the original notebook. Lower RMSE/MAE are 
 | LinearRegression | 1,859.749 | 1,366.473 | 0.844 |
 | Lasso | 1,860.458 | 1,366.629 | 0.844 |
 
-HistGradientBoosting had the lowest cross-validation RMSE among the five tested candidates and was selected for hyperparameter tuning.
-
-### 6. Hyperparameter tuning
-
-The original notebook uses `GridSearchCV` with five-fold cross-validation and negative RMSE as its scoring function. The parameter grid contains 243 combinations.
-
-Reported best parameters:
+The reported best parameters for the tuned HistGradientBoosting model were:
 
 ```python
 {
@@ -144,61 +62,135 @@ Reported best parameters:
 }
 ```
 
-### 7. Evaluation
+The grid contained 243 parameter combinations. The notebook's reported final test MAPE was 6.95%.
 
-The notebook evaluates the fitted tuned model using RMSE, MAE, and R² on both the training and test partitions. It also calculates percentage errors and reports a MAPE of 6.95% for the tuned model. The model's prediction errors should be evaluated by vehicle model, year, and price range as a next step, particularly given the low counts for some categories.
+## Experimental engineering iteration
 
-## Technology stack
+The repository also contains a second set of files, uploaded with names similar to `ProjectImproved.ipynb`, `model_service_improved.py`, `schemas_improved.py`, `main_improved.py`, `app_improved.py`, and `test_prediction_improved.py`. Check the exact spelling and capitalization of the filenames in the repository and adjust the table below if they differ.
 
-- **Python** — project language
-- **pandas, NumPy** — data loading and numerical work
-- **Matplotlib, Seaborn** — exploratory data visualisation
-- **scikit-learn** — preprocessing, regression, cross-validation, tuning, and evaluation
-- **joblib** — serializing and loading the fitted pipeline
-- **FastAPI** — prediction API
-- **Pydantic** — request and response validation
-- **Uvicorn** — ASGI server for FastAPI
-- **Streamlit** — interactive user interface
-- **Requests** — HTTP calls from Streamlit to the API
+These files represent an **experimental engineering iteration**, not a validated improvement in predictive accuracy.
 
-Exact Python and package versions were not included in the supplied source files. For reproducible loading of a scikit-learn joblib artifact, use the same compatible scikit-learn version as the training environment and record the versions in a `requirements.txt` file.
+| Version | Reported MAPE | Interpretation |
+|---|---:|---|
+| Original notebook's tuned model | 6.95% | Current reference benchmark from the original run |
+| Experimental iteration | 7.16% | 0.21 percentage points higher MAPE; not an accuracy improvement |
 
-## Repository layout
+The experimental MAPE is approximately 3.02% higher relative to the original value. This comparison is meaningful only if both values were calculated on the same test rows using the same MAPE definition. The experiment's corresponding RMSE, MAE, R², selected parameters, and exact test-split details have not been supplied, so they are intentionally not inferred here.
 
-The following is a suggested layout consistent with the paths and relative imports in the supplied source. Adjust directory names if your actual repository differs.
+### What the experimental files attempt to improve
 
-```text
-ford-price-predictor/
-├── app.py
-├── data/
-│   └── ford.csv
-├── models/
-│   └── ford_price_model.pkl
-├── notebooks/
-│   └── Project.ipynb
-└── backend/
-    ├── __init__.py
-    ├── main.py
-    ├── model_service.py
-    └── schemas.py
+- Normalize categorical feature values consistently before prediction.
+- Make the serialized model path configurable with `FORD_MODEL_PATH`.
+- Add explicit request constraints and categorical validation.
+- Separate API liveness from model readiness.
+- Avoid returning detailed internal exceptions to API clients.
+- Improve Streamlit validation and error messages.
+- Add API contract tests for request handling and response format.
+
+These are useful engineering goals, but the experimental MAPE of 7.16% is worse than the original reported 6.95%. The experimental model should not be described as more accurate. Keep it clearly labelled as experimental until it is evaluated and the accuracy impact is understood.
+
+**Recommended benchmark policy:** Use the original notebook's 6.95% result as the reference score. Preserve the experimental files for review if you want to show iterative engineering work, but do not describe them as an accuracy improvement. For a clean portfolio repository, put them in an `experiments/` folder or a separate branch, or remove them from the main branch if they are not intended to be supported. Do not silently mix the two versions in the same run instructions.
+
+## Project architecture
+
+```mermaid
+flowchart TD
+    A[Vehicle details] --> B[Streamlit UI]
+    B --> C[POST /predict]
+    C --> D[FastAPI + Pydantic]
+    D --> E[Model service]
+    E --> F[Serialized scikit-learn pipeline]
+    F --> E
+    E --> D
+    D --> G[Predicted price in GBP]
+    G --> B
 ```
 
-## Getting started
+## Dataset
 
-### 1. Clone the repository
+The supplied `ford.csv` has **17,966 rows and 9 columns** before cleaning. Initial inspection found 154 duplicate rows, one row with year `2060`, and 51 rows where `engineSize` is zero. The original notebook removes duplicate rows and filters out years above 2026; zero engine sizes should be investigated against the dataset source before deciding whether they represent valid values or missing data.
 
-```bash
-git clone <your-repository-url>
-cd ford-price-predictor
-```
+### Features
 
-### 2. Create an environment and install dependencies
+| Feature | Description | Type |
+|---|---|---|
+| `model` | Ford vehicle model | Categorical |
+| `year` | Vehicle year | Numeric |
+| `transmission` | Transmission type | Categorical |
+| `mileage` | Vehicle mileage | Numeric |
+| `fuelType` | Fuel type | Categorical |
+| `tax` | Vehicle tax | Numeric |
+| `mpg` | Fuel economy in miles per gallon | Numeric |
+| `engineSize` | Engine displacement | Numeric |
+| `price` | Target vehicle price | Target |
+
+The inspected dataset is imbalanced across some categories, including 22 hybrid examples, 2 electric examples, and 1 example labelled `Other`. Results for rare categories may be less reliable than results for well-represented categories.
+
+**Dataset provenance:** The source URL and licence were not present in the files supplied for this README. Add the original source and licence details before publishing the dataset or redistributing it.
+
+## Machine-learning workflow
+
+1. **Load and inspect the data:** Read `ford.csv`, review dimensions, types, missing values, distributions, and duplicates.
+2. **Clean the data:** Normalize categorical values, remove duplicates, and filter invalid future years according to the notebook's current rule.
+3. **Explore features:** Use numerical summaries, category counts, histograms, boxplots, and numerical correlations.
+4. **Split data:** Use an 80/20 train/test split with `random_state=42`.
+5. **Build preprocessing:** Use median imputation and standard scaling for numerical features; most-frequent imputation and one-hot encoding for categorical features.
+6. **Compare models:** Evaluate five regressors using five-fold cross-validation and RMSE, MAE, and R².
+7. **Tune the candidate:** Use `GridSearchCV` to tune HistGradientBoosting based on negative RMSE.
+8. **Evaluate:** Report training/test RMSE, MAE, R² and test MAPE; examine residuals and errors by vehicle segment as further validation.
+9. **Serve predictions:** Load a serialized fitted pipeline in the FastAPI model service and call it from the Streamlit interface.
+
+## Technologies
+
+- **Python** — implementation language
+- **pandas, NumPy** — data preparation and numerical operations
+- **Matplotlib, Seaborn** — visual exploratory data analysis
+- **scikit-learn** — preprocessing, regression, cross-validation, hyperparameter search, and metrics
+- **joblib** — model serialization
+- **FastAPI, Pydantic, Uvicorn** — prediction API and input validation
+- **Streamlit, Requests** — user interface and HTTP client
+- **pytest, httpx** — experimental API contract tests
+
+The exact Python and dependency versions used for the original metrics have not been provided. Record them in `requirements.txt` and use a compatible scikit-learn version to load the saved artifact.
+
+## Repository files
+
+The original project files supplied for review were:
+
+| File | Purpose |
+|---|---|
+| `Project.ipynb` (possibly uploaded as `Project(1).ipynb`) | Original EDA, model comparison, tuning, evaluation, and prediction helper |
+| `model_service.py` (possibly `model_service(1).py`) | Loads the model artifact and builds the inference DataFrame |
+| `schemas.py` (possibly `schemas(1).py`) | Pydantic request/response models |
+| `main.py` (possibly `main(1).py`) | FastAPI endpoints |
+| `app.py` (possibly `app(1).py`) | Streamlit form and prediction display |
+| `ford.csv` | Dataset |
+| `ford_price_model.pkl` | Expected serialized pipeline artifact |
+
+The experimental files should be listed separately:
+
+| File | Purpose |
+|---|---|
+| `ProjectImproved.ipynb` | Experimental notebook iteration; verify the exact filename in the repository |
+| `model_service_improved.py` | Experimental model loading and inference service |
+| `schemas_improved.py` | Experimental input and response validation |
+| `main_improved.py` | Experimental FastAPI lifecycle, readiness, and error handling |
+| `app_improved.py` | Experimental Streamlit form and error messages |
+| `test_prediction_improved.py` | Contract tests for the experimental API modules |
+
+If your uploaded notebook is actually named `Project_improved.ipynb`, update the README's filename to match. GitHub paths are case-sensitive in many deployment environments.
+
+## Setup and running the original project
+
+The original API uses relative imports, so place the backend files inside a Python package containing `__init__.py`, or adjust the imports to match your repository.
+
+### 1. Create a virtual environment
 
 ```bash
 python -m venv .venv
 ```
 
-Activate the environment:
+Activate it:
 
 ```bash
 # macOS / Linux
@@ -208,119 +200,86 @@ source .venv/bin/activate
 .venv\Scripts\Activate.ps1
 ```
 
-Install the packages used by the project:
+### 2. Install dependencies
 
 ```bash
 python -m pip install numpy pandas matplotlib seaborn scikit-learn joblib fastapi "uvicorn[standard]" pydantic streamlit requests jupyter
 ```
 
-For repeatable deployment, pin the tested versions in `requirements.txt` after confirming the versions used to train the model.
+For reproducibility, pin the exact dependency versions from the environment used to train and evaluate the model.
 
-### 3. Place the dataset and train the model
+### 3. Train and save the original model
 
-Place the dataset at `data/ford.csv`, open `notebooks/Project.ipynb`, and execute the notebook to reproduce the analysis and training process.
+Place `ford.csv` in the path expected by the notebook (`../data/ford.csv` relative to its working directory), open `Project.ipynb`, and execute the cells. The original notebook's `joblib.dump` line is commented out, so save the fitted `hgb_best` pipeline to the path expected by the model service before launching the API. Ensure the model artifact's scikit-learn version is compatible with the API environment.
 
-The API's model service expects the serialized pipeline at:
+### 4. Run the original FastAPI app
 
-```text
-models/ford_price_model.pkl
-```
-
-The original notebook's save statement is commented out, so ensure the fitted pipeline is explicitly saved to the path expected by the API before starting the backend. The training and serving environments must use compatible versions of scikit-learn and its dependencies.
-
-### 4. Start the API
-
-From the repository root, if the backend package is named `backend` and contains `__init__.py`, run:
+From the repository root, for a package named `backend`:
 
 ```bash
 uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-If your package has a different name or location, replace `backend.main:app` with the corresponding import path. FastAPI's interactive documentation is available at `http://127.0.0.1:8001/docs` while the server is running.
+The original API exposes:
 
-Available endpoints in the original API:
-
-| Method | Endpoint | Purpose |
+| Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/` | Basic API status message |
-| `GET` | `/health` | Basic health response |
-| `POST` | `/predict` | Predict a vehicle price |
+| GET | `/` | Basic status message |
+| GET | `/health` | Basic health response |
+| POST | `/predict` | Return a price estimate |
 
-Example prediction request:
+Interactive API documentation is available at `http://127.0.0.1:8001/docs` while the server is running.
 
-```json
-{
-  "model": "Fiesta",
-  "year": 2017,
-  "transmission": "Manual",
-  "mileage": 15000,
-  "fuelType": "Diesel",
-  "tax": 125,
-  "mpg": 57.7,
-  "engineSize": 1.5
-}
-```
+### 5. Run the original Streamlit app
 
-Example response shape:
-
-```json
-{
-  "predicted_price": 8500.0,
-  "currency": "GBP"
-}
-```
-
-The response number above is illustrative only, not a recorded prediction for the example request.
-
-### 5. Start the Streamlit interface
-
-In a second terminal, with the environment activated, run:
+In a second terminal:
 
 ```bash
-streamlit run app.py
-```
-
-The UI defaults to `http://127.0.0.1:8001` for the API. To override the base URL, set the `API_URL` environment variable before launching Streamlit.
-
-PowerShell example:
-
-```powershell
+# Windows PowerShell
 $env:API_URL = "http://127.0.0.1:8001"
 streamlit run app.py
 ```
 
-## API contract
+The UI's `API_URL` variable is a base URL; `app.py` appends `/predict` to it.
 
-### Request fields
+## Running the experimental variant
 
-The `/predict` endpoint expects all eight input features: `model`, `year`, `transmission`, `mileage`, `fuelType`, `tax`, `mpg`, and `engineSize`. The request schema applies basic type and numeric-bound checks. Refer to `schemas.py` for the exact limits used by the checked-out version of the project.
+The experimental API modules use relative imports, so put them in a Python package with the other experimental files or adapt the package structure. Configure `FORD_MODEL_PATH` to point to the artifact created by the notebook you intend to serve. Train and evaluate the experimental notebook before serving its model; do not assume a previous artifact was retrained.
 
-### Response fields
+Example commands, if the experimental modules are in a `backend` package and their imports match that package:
 
-- `predicted_price`: numeric estimated price rounded to two decimal places by the API.
-- `currency`: `GBP`.
+```bash
+uvicorn backend.main_improved:app --host 127.0.0.1 --port 8001
+streamlit run app_improved.py
+```
 
-## Engineering considerations and future work
+Install test tools if needed and run the contract tests from the directory containing the test module:
 
-The current project is a useful end-to-end ML prototype. The following are meaningful next steps before relying on it for real-world pricing:
+```bash
+python -m pip install pytest httpx
+python -m pytest test_prediction_improved.py -q
+```
 
-1. **Align training and inference preprocessing.** The notebook lowercases category values, while the original model service only strips whitespace. Apply the same canonical normalization before inference to avoid category mismatches with the fitted one-hot encoder.
-2. **Make model artifact generation reproducible.** The original notebook's export statement is commented out, while the API expects a particular path. Automate artifact saving and verify that the saved pipeline reloads successfully.
-3. **Correct and test the notebook inference helper.** The original standalone prediction helper omits the `year` column from its DataFrame and defines `fuelType` twice. Keep the inference feature set exactly aligned with the eight training features.
-4. **Unify input constraints.** The Streamlit controls and Pydantic request schema have different numeric boundaries, and the schema accepts arbitrary non-empty categorical strings. Define supported categories and documented ranges based on the training dataset.
-5. **Add automated integration tests.** Test request validation, category normalization, model loading, response shape, and a real prediction with the saved artifact.
-6. **Evaluate reliability across subgroups.** Inspect MAE and RMSE by car model, year, price bands, and fuel type; categories with very few examples need particular care.
-7. **Use robust validation for future data.** A random split estimates performance on a similar distribution. Consider a time-based holdout or external validation set if the intended use is estimating prices for newer listings.
-8. **Improve operational observability.** Separate process liveness from model readiness, keep client-facing errors generic, and log enough diagnostic information for debugging without exposing internal details.
-9. **Track experiments and artifacts.** Record package versions, data-cleaning rules, random seeds, parameters, metrics, and artifact versions with each model run.
-10. **Document data provenance.** Add the dataset source, licence, and any redistribution requirements before sharing the dataset publicly.
+The contract tests use a fake model service and do not, by themselves, validate predictive accuracy or prove that the deployed model artifact loads correctly. Run an end-to-end test against the actual serialized artifact as well.
 
-These are identified engineering opportunities; they should not be interpreted as features already implemented in the original files.
+## Limitations and next steps
+
+- **Inference normalization:** The original notebook lowercases categories, while the original model service only strips whitespace. Align preprocessing at inference with the training vocabulary and verify prediction consistency.
+- **Notebook helper:** The original notebook's standalone `predict_ford_price` helper omits `year` from the input DataFrame and repeats the `fuelType` key. Correct it before relying on that helper.
+- **Model artifact workflow:** The original notebook's export line is commented out. Automate saving the full fitted pipeline at the exact location expected by the API.
+- **Supported inputs:** UI limits and backend schema constraints differ. Establish feature ranges from domain requirements and training data, and handle categories unseen during training transparently.
+- **Independent validation:** Use an external or time-based holdout to assess generalization to later listings; the current random split may not represent future market conditions.
+- **Error analysis:** Report error by model, year, price band, and fuel type. Investigate rare categories before making claims about their prediction quality.
+- **Data provenance:** Document the dataset source and its licence.
+- **Experiment tracking:** Record data filters, random seeds, package versions, parameter search space, selected parameters, and all test metrics for each run.
+- **Deployment hardening:** Use separate liveness/readiness checks, structured logs, and generic client-facing errors before public deployment.
 
 ## Responsible use
 
-This model provides an estimate based on historical listings in the training dataset. It is not a professional valuation, dealership quote, or guarantee of a sale price. Prices may vary with vehicle condition, trim, location, service history, accident history, and market changes—factors not all represented in the listed input features.
+This project provides an estimate from historical listing data, not a guaranteed market value or a professional valuation. Actual sale prices can depend on vehicle condition, trim, service history, accident history, location, and market changes that may not be represented by the input features.
 
 ## Author
 
 **Muhammad Kamran**
+
+Replace these placeholders and confirm the repository paths before publishing.
